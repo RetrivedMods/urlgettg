@@ -2,14 +2,21 @@ import os
 import requests
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, ConversationHandler
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    CallbackContext,
+    ConversationHandler,
+)
 
 # Load environment variables
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
 # Start command
-def start(update: Update, context: CallbackContext) -> None:
+async def start(update: Update, context: CallbackContext) -> None:
     start_message = """
     🌟 *Welcome to the URL Shortener Bot!* 🌟
 
@@ -29,10 +36,10 @@ def start(update: Update, context: CallbackContext) -> None:
 
     Enjoy shortening your URLs! 🚀
     """
-    update.message.reply_text(start_message, parse_mode='Markdown')
+    await update.message.reply_text(start_message, parse_mode='Markdown')
 
 # Help command
-def help_command(update: Update, context: CallbackContext) -> None:
+async def help_command(update: Update, context: CallbackContext) -> None:
     help_message = """
     📚 *Help Section*
 
@@ -51,28 +58,28 @@ def help_command(update: Update, context: CallbackContext) -> None:
 
     If you encounter any issues, please contact support.
     """
-    update.message.reply_text(help_message, parse_mode='Markdown')
+    await update.message.reply_text(help_message, parse_mode='Markdown')
 
 # URL shortening logic
-def shorten_url(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text("Please enter your API key:")
+async def shorten_url(update: Update, context: CallbackContext) -> int:
+    await update.message.reply_text("Please enter your API key:")
     return 'API_KEY'
 
-def get_api_key(update: Update, context: CallbackContext) -> None:
+async def get_api_key(update: Update, context: CallbackContext) -> int:
     user_api_key = update.message.text
     context.user_data['api_key'] = user_api_key
-    update.message.reply_text("Please enter the URL you want to shorten:")
+    await update.message.reply_text("Please enter the URL you want to shorten:")
     return 'URL'
 
-def get_url(update: Update, context: CallbackContext) -> None:
+async def get_url(update: Update, context: CallbackContext) -> int:
     url_to_shorten = update.message.text
     api_key = context.user_data.get('api_key')
     shortened_url = shorten_url_with_api(api_key, url_to_shorten)
     if shortened_url:
-        update.message.reply_text(f"✅ *Shortened URL:* {shortened_url}", parse_mode='Markdown')
+        await update.message.reply_text(f"✅ *Shortened URL:* {shortened_url}", parse_mode='Markdown')
     else:
-        update.message.reply_text("❌ *Error:* Unable to shorten the URL. Please check your API key and try again.", parse_mode='Markdown')
-    return -1
+        await update.message.reply_text("❌ *Error:* Unable to shorten the URL. Please check your API key and try again.", parse_mode='Markdown')
+    return ConversationHandler.END
 
 def shorten_url_with_api(api_key: str, url: str) -> str:
     api_url = f"https://blog.thunderlinks.site/api?api={api_key}&url={url}"
@@ -84,31 +91,32 @@ def shorten_url_with_api(api_key: str, url: str) -> str:
     return None
 
 # Cancel command
-def cancel(update: Update, context: CallbackContext) -> int:
-    update.message.reply_text('Operation cancelled.')
+async def cancel(update: Update, context: CallbackContext) -> int:
+    await update.message.reply_text('Operation cancelled.')
     return ConversationHandler.END
-
-# Conversation handler
-URL_SHORTENER_CONVERSATION = ConversationHandler(
-    entry_points=[CommandHandler('shorten', shorten_url)],
-    states={
-        'API_KEY': [MessageHandler(Filters.text & ~Filters.command, get_api_key)],
-        'URL': [MessageHandler(Filters.text & ~Filters.command, get_url)],
-    },
-    fallbacks=[CommandHandler('cancel', cancel)],
-)
 
 # Main function
 def main() -> None:
-    updater = Updater(TELEGRAM_BOT_TOKEN)
-    dispatcher = updater.dispatcher
+    # Create the Application
+    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CommandHandler("help", help_command))
-    dispatcher.add_handler(URL_SHORTENER_CONVERSATION)
+    # Add handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
 
-    updater.start_polling()
-    updater.idle()
+    # Conversation handler for URL shortening
+    url_shortener_conversation = ConversationHandler(
+        entry_points=[CommandHandler('shorten', shorten_url)],
+        states={
+            'API_KEY': [MessageHandler(filters.TEXT & ~filters.COMMAND, get_api_key)],
+            'URL': [MessageHandler(filters.TEXT & ~filters.COMMAND, get_url)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+    )
+    application.add_handler(url_shortener_conversation)
+
+    # Start the bot
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
