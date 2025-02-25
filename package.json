@@ -1,0 +1,14 @@
+{
+  "name": "telegram-url-shortener-bot",
+  "version": "1.0.0",
+  "description": "A Telegram bot to shorten URLs using MyBios API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.40.0",
+    "axios": "^1.3.5",
+    "express": "^4.18.2"
+  }
+}
